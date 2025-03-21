@@ -268,7 +268,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         };
 
         let eval_z_a_time = start_timer!(|| "Evaluating z_A");
-        let z_a = index.a.iter().map(|row| inner_prod_fn(row)).collect();
+        let z_a = index.a.iter().map(|row: &Vec<(F, usize)>| inner_prod_fn(row)).collect();
         end_timer!(eval_z_a_time);
 
         let eval_z_b_time = start_timer!(|| "Evaluating z_B");
@@ -306,6 +306,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
     }
 
     /// Output the first round message and the next state.
+    //这一轮的检测
     pub fn prover_first_round<'a, R: RngCore>(
         mut state: ProverState<'a, F>,
         rng: &mut R,
@@ -465,6 +466,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         let summed_z_m_poly_time = start_timer!(|| "Compute z_m poly");
         let (z_a_poly, z_b_poly) = state.mz_polys.as_ref().unwrap();
         let z_c_poly = z_a_poly.polynomial() * z_b_poly.polynomial();
+        //z_c_poly是分片形式
 
         let mut summed_z_m_coeffs = z_c_poly.coeffs;
         // Note: Can't combine these two loops, because z_c_poly has 2x the degree
@@ -476,9 +478,12 @@ impl<F: PrimeField> AHPForR1CS<F> {
             .zip(&z_b_poly.polynomial().coeffs)
             .for_each(|((c, a), b)| *c += &(eta_a * a + &(eta_b * b)));
 
+        //summed_z_m是分片形式
         let summed_z_m = DensePolynomial::from_coefficients_vec(summed_z_m_coeffs);
         end_timer!(summed_z_m_poly_time);
 
+        //批量计算未归一化的双变量拉格朗日多项式。
+        //r_alpha_poly是明文形式
         let r_alpha_x_evals_time = start_timer!(|| "Compute r_alpha_x evals");
         let r_alpha_x_evals =
             domain_h.batch_eval_unnormalized_bivariate_lagrange_poly_with_diff_inputs(alpha);
@@ -488,6 +493,8 @@ impl<F: PrimeField> AHPForR1CS<F> {
         let r_alpha_poly = DensePolynomial::from_coefficients_vec(domain_h.ifft(&r_alpha_x_evals));
         end_timer!(r_alpha_poly_time);
 
+        //t_poly是第三轮要sumcheck的多项式
+        //t_poly 是明文形式
         let t_poly_time = start_timer!(|| "Compute t poly");
         let t_poly = Self::calculate_t(
             vec![&state.index.a, &state.index.b, &state.index.c].into_iter(),
@@ -498,6 +505,7 @@ impl<F: PrimeField> AHPForR1CS<F> {
         );
         end_timer!(t_poly_time);
 
+        //z_poly 是分片形式
         let z_poly_time = start_timer!(|| "Compute z poly");
 
         let domain_x = GeneralEvaluationDomain::new(state.formatted_input_assignment.len())
@@ -517,6 +525,8 @@ impl<F: PrimeField> AHPForR1CS<F> {
 
         end_timer!(z_poly_time);
 
+      //q_1=summed_z_m*r_alpha_poly + t_poly*z_poly+mask
+       //q_1是分片形似，mask是明文不影响
         let q_1_time = start_timer!(|| "Compute q_1 poly");
 
         let mul_domain_size = *[
@@ -556,6 +566,8 @@ impl<F: PrimeField> AHPForR1CS<F> {
         assert!(g_1.degree() <= domain_h.size() - 2);
         assert!(h_1.degree() <= 2 * domain_h.size() + 2 * zk_bound - 2);
 
+
+        //注意 t 是明文
         let oracles = ProverSecondOracles {
             t: LabeledPolynomial::new("t".into(), t_poly, None, None),
             g_1: LabeledPolynomial::new("g_1".into(), g_1, Some(domain_h.size() - 2), Some(1)),

@@ -8,11 +8,11 @@
 //! matrices are square). Furthermore, Marlin only supports instances where the
 //! public inputs are of size one less than a power of 2 (i.e., 2^n - 1).
 #![deny(unused_import_braces, unused_qualifications, trivial_casts)]
-#![deny(trivial_numeric_casts, private_in_public)]
+#![deny(trivial_numeric_casts)]
 #![deny(stable_features, unreachable_pub, non_shorthand_field_patterns)]
 #![deny(unused_attributes, unused_imports, unused_mut, missing_docs)]
-#![deny(renamed_and_removed_lints, stable_features, unused_allocation)]
-#![deny(unused_comparisons, bare_trait_objects, unused_must_use, const_err)]
+#![deny(stable_features, unused_allocation)]
+#![deny(unused_comparisons, bare_trait_objects, unused_must_use)]
 #![forbid(unsafe_code)]
 
 #[macro_use]
@@ -182,6 +182,13 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
         let (verifier_first_msg, verifier_state) =
             AHPForR1CS::verifier_first_round(index_pk.index_vk.index_info, &mut fs_rng)?;
         // --------------------------------------------------------------------
+        // use ark_serialize::CanonicalSerialize;
+
+        // let mut bytes = Vec::new();
+
+        // first_comm_rands.serialize_uncompressed(&mut bytes).unwrap();
+        // println!("first randomness: {:?}", bytes);
+        // println!("first randomness: {:?}", first_comm_rands.len());
 
         // --------------------------------------------------------------------
         // Second round
@@ -203,6 +210,13 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
         let (verifier_second_msg, verifier_state) =
             AHPForR1CS::verifier_second_round(verifier_state, &mut fs_rng);
         // --------------------------------------------------------------------
+        // print!("second {:?}", second_comm_rands.Randomness);
+       // use ark_serialize::CanonicalSerialize;
+
+        // let mut bytes2 = Vec::new();
+        // second_comm_rands.serialize_uncompressed(&mut bytes2).unwrap();
+        // print!("second randomness: {}", encode(bytes2));
+        
 
         // --------------------------------------------------------------------
         // Third round
@@ -222,6 +236,9 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
 
         let verifier_state = AHPForR1CS::verifier_third_round(verifier_state, &mut fs_rng);
         // --------------------------------------------------------------------
+        // print!("first {:?}", third_comm_rands.Randomness);
+
+        println!("first randomness: {:?}", third_comm_rands.len());
 
         // Gather prover polynomials in one vector.
         let polynomials: Vec<_> = index_pk
@@ -277,6 +294,9 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
                 .find(|lc| &lc.label == label)
                 .ok_or(ahp::Error::MissingEval(label.to_string()))?;
             let eval = polynomials.get_lc_eval(&lc, *point)?;
+            // if lc.label=="outer_sumcheck" {
+            //     println!("{}",eval);
+            // }
             if !AHPForR1CS::<F>::LC_WITH_ZERO_EVAL.contains(&lc.label.as_ref()) {
                 evaluations.push((label.to_string(), eval));
             }
@@ -284,6 +304,7 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
 
         evaluations.sort_by(|a, b| a.0.cmp(&b.0));
         let evaluations = evaluations.into_iter().map(|x| x.1).collect::<Vec<F>>();
+        println!("{:?}",evaluations);
         end_timer!(eval_time);
 
         fs_rng.absorb(&evaluations);
@@ -293,7 +314,7 @@ impl<F: PrimeField, PC: PolynomialCommitment<F, DensePolynomial<F>>, FS: FiatSha
             &index_pk.committer_key,
             &lc_s,
             polynomials,
-            &labeled_comms,
+            &labeled_comms,//识别作用·标识还是·计算
             &query_set,
             opening_challenge,
             &comm_rands,
